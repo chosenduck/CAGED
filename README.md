@@ -9,6 +9,8 @@ Processamento dos microdados do CAGED – em desenvolvimento;
 
 Extração da RAIS – em desenvolvimento;
 
+Processamento dos microdados da RAIS – em desenvolvimento;
+
 Geração de indicadores e análises avançadas – em planejamento futuro.
 
 **🔹 Período Abrangido:**
