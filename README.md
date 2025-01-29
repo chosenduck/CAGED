@@ -7,7 +7,7 @@ Este repositório está em construção e tem como objetivo desenvolver scripts 
 
 Processamento dos microdados do CAGED – em desenvolvimento;
 
-Extração da RAIS – em fase de implementação;
+Extração da RAIS – em desenvolvimento;
 
 Geração de indicadores e análises avançadas – em planejamento futuro.
 
