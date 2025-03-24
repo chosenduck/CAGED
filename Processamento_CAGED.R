@@ -80,13 +80,6 @@ colunas_agrupar <- c(
   "subclasse","sexo", "idade", "graudeinstrucao", "racacor", "salario"
 )
 
-salario_minimo <- c('2020' = 1045, 
-                    '2021' = 1100, 
-                    '2022' = 1212, 
-                    '2023' = 1302, 
-                    '2024' = 1412,
-                    '2025' = 1518
-)
 
 filtro_uf = 31
 
@@ -248,15 +241,83 @@ if (length(dfs) > 0) {
 }
 
 #### Processando CAGED_UNIFICADA ===============================================
+
+# Função para calcular a faixa salarial
+salario_minimo <- c('2020' = 1045, 
+                    '2021' = 1100, 
+                    '2022' = 1212, 
+                    '2023' = 1302, 
+                    '2024' = 1412,
+                    '2025' = 1518
+)
+
+calcular_faixa_salarial <- function(salario, ano, salario_minimo) {
+  salario_minimo_ano <- salario_minimo[[as.character(ano)]]
+  
+  if (salario <= salario_minimo_ano) {
+    return("Até 1 salário mínimo")
+  } else if (salario <= 2 * salario_minimo_ano) {
+    return("Entre 1 e 2 salários mínimos")
+  } else if (salario <= 3 * salario_minimo_ano) {
+    return("Entre 2 e 3 salários mínimos")
+  } else if (salario <= 4 * salario_minimo_ano) {
+    return("Entre 3 e 4 salários mínimos")
+  } else if (salario <= 5 * salario_minimo_ano) {
+    return("Entre 4 e 5 salários mínimos")
+  } else if (salario <= 10 * salario_minimo_ano) {
+    return("Entre 5 e 10 salários mínimos")
+  } else {
+    return("Mais de 10 salários mínimos")
+  }
+}
+
+# Função para adicionar a faixa etaria
+adicionar_faixaeta <- function(idade) {
+  case_when(
+    idade >= 10 & idade <= 14 ~ 1,
+    idade >= 15 & idade <= 17 ~ 2,
+    idade >= 18 & idade <= 24 ~ 3,
+    idade >= 25 & idade <= 29 ~ 4,
+    idade >= 30 & idade <= 39 ~ 5,
+    idade >= 40 & idade <= 49 ~ 6,
+    idade >= 50 & idade <= 64 ~ 7,
+    idade >= 65 ~ 8,
+    TRUE ~ 99
+  )
+}
+
+# Função para adicionar a regiao
+adicionar_regiao <- function(regiao) {
+  case_when(
+    regiao == 1 ~ "Norte",
+    regiao == 2 ~ "Nordeste",
+    regiao == 3 ~ "Sudeste",
+    regiao == 4 ~ "Sul",
+    regiao == 5 ~ "Centro-Oeste",
+    TRUE ~ "Não Informado"
+  )
+}
+
+# Processando CAGED_UNIFICADA
+start_time <- Sys.time()
+
 CAGED_UNIFICADA <- CAGED_UNIFICADA %>%
   mutate(
-    salario = as.factor(salario),
     ano = substr(competenciamov, 1, 4),
     competenciamov = paste0(substr(competenciamov, 1, 4),
                             substr(competenciamov, 5, 6)),
     competenciamov = as.Date(competenciamov, format = "%Y%m"),
     salario = as.numeric(str_replace_na(str_replace(as.character(salario), ",", "."), "0")),
-    faixa_salarial = calcular_faixa_salarial(salario, ano, salario_minimo),
+    salario_minimo_ano = salario_minimo[as.character(ano)],
+    faixa_salarial = case_when(
+      salario <= salario_minimo_ano ~ "Até 1 salário mínimo",
+      salario > salario_minimo_ano & salario <= 2 * salario_minimo_ano ~ "Entre 1 e 2 salários mínimos",
+      salario > 2 * salario_minimo_ano & salario <= 3 * salario_minimo_ano ~ "Entre 2 e 3 salários mínimos",
+      salario > 3 * salario_minimo_ano & salario <= 4 * salario_minimo_ano ~ "Entre 3 e 4 salários mínimos",
+      salario > 4 * salario_minimo_ano & salario <= 5 * salario_minimo_ano ~ "Entre 4 e 5 salários mínimos",
+      salario > 5 * salario_minimo_ano & salario <= 10 * salario_minimo_ano ~ "Entre 5 e 10 salários mínimos",
+      salario > 10 * salario_minimo_ano ~ "Mais de 10 salários mínimos"
+    ),
     sexo = mapvalues(sexo, from = dic_sexo$cod, to = dic_sexo$nom, warn_missing = FALSE),
     racacor = mapvalues(racacor, from = dic_racacor$cod, to = dic_racacor$nom, warn_missing = FALSE),
     graudeinstrucao = mapvalues(graudeinstrucao, from = dic_escolaridade$cod, to = dic_escolaridade$nom, warn_missing = FALSE),
@@ -267,8 +328,17 @@ CAGED_UNIFICADA <- CAGED_UNIFICADA %>%
     secao = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Seção`, warn_missing = FALSE),
     uf = mapvalues(uf, from = dic_local$UF, to = dic_local$Nome_UF, warn_missing = FALSE),
     regiao = adicionar_regiao(regiao)
-  ) %>% 
-  select(-faixaetaria)
+  ) %>%
+  select(competenciamov, ano, regiao, uf, 
+         secao, classe, subclasse, 
+         sexo, idade, faixaeta, racacor, graudeinstrucao,
+         salario, faixa_salarial,
+         admissoes, desligamentos, saldomovimentacao)
+
+# Calculando o tempo de processamento
+processing_time <- Sys.time() - start_time
+cat("\nArquivo processado! \nTempo de execução:", format_time(as.numeric(processing_time, units = "secs")))
+
 
 # Checando valores mais recentes com os oficiais 
 # https://www.gov.br/trabalho-e-emprego/pt-br/assuntos/estatisticas-trabalho
@@ -279,3 +349,6 @@ CAGED_UNIFICADA %>%
     desligamentos = sum(desligamentos, na.rm = TRUE),
     saldo = sum(saldomovimentacao, na.rm = TRUE)
   )
+
+#### Salvando ==================================================================
+write_parquet(CAGED_UNIFICADA, file.path(diretorio_processados, "CAGED_UNIFICADA.parquet"), compression = "snappy")
