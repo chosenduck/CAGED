@@ -5,13 +5,13 @@ Este repositório está em construção e tem como objetivo desenvolver scripts 
 
 **Extração dos microdados do Novo CAGED - Concluída ✔️**
 
-Processamento dos microdados do CAGED – em desenvolvimento;
+**Processamento dos microdados do CAGED – Concluída ✔️**
 
 Extração da RAIS – em desenvolvimento;
 
 Processamento dos microdados da RAIS – em desenvolvimento;
 
-Geração de indicadores e análises avançadas – em planejamento futuro.
+Geração de indicadores e análises avançadas – em desenvolvimento.
 
 **🔹 Período Abrangido:**
 
