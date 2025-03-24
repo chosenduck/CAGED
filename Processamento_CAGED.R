@@ -67,12 +67,17 @@ tipos_arquivos <- c(
   "CAGEDMOV2023", 
   "CAGEDMOV2024",
   "CAGEDMOV2025"
-  )
+)
 
 colunas_selecionadas <- c(
   "competenciamov", "regiao", "uf",
   "subclasse","sexo", "idade", "graudeinstrucao", "racacor", "salario", 
   "admissoes", "desligamentos", "saldomovimentacao"
+)
+
+colunas_agrupar <- c(
+  "competenciamov", "regiao", "uf",
+  "subclasse","sexo", "idade", "graudeinstrucao", "racacor", "salario"
 )
 
 salario_minimo <- c('2020' = 1045, 
@@ -81,52 +86,9 @@ salario_minimo <- c('2020' = 1045,
                     '2023' = 1302, 
                     '2024' = 1412,
                     '2025' = 1518
-                    )
+)
 
 filtro_uf = 31
-
-#### Funções ===================================================================
-# Adicionar coluna de faixa etária
-adicionar_faixaeta <- function(idade) {
-  case_when(
-    idade >= 10 & idade <= 14 ~ 1,
-    idade >= 15 & idade <= 17 ~ 2,
-    idade >= 18 & idade <= 24 ~ 3,
-    idade >= 25 & idade <= 29 ~ 4,
-    idade >= 30 & idade <= 39 ~ 5,
-    idade >= 40 & idade <= 49 ~ 6,
-    idade >= 50 & idade < 64 ~ 7,
-    idade > 65 ~ 8,
-    TRUE ~ 99
-  )
-}
-
-# Adicionar coluna de região
-adicionar_regiao <- function(regiao) {
-  case_when(
-    regiao == 1 ~ "Norte",
-    regiao == 2 ~ "Nordeste",
-    regiao == 3 ~ "Sudeste",
-    regiao == 4 ~ "Sul",
-    regiao == 5 ~ "Centro-Oeste",
-    regiao == 9 ~ "Não Identificado",
-    TRUE ~ NA_character_
-  )
-}
-
-# Adicionar coluna de faixa salarial
-calcular_faixa_salarial <- function(salario, ano, salario_minimo) {
-  case_when(
-    salario <= salario_minimo[as.character(ano)] ~ "Até 1 salário mínimo",
-    salario > salario_minimo[as.character(ano)] & salario <= 2 * salario_minimo[as.character(ano)] ~ "Entre 1 e 2 salários mínimos",
-    salario > 2 * salario_minimo[as.character(ano)] & salario <= 3 * salario_minimo[as.character(ano)] ~ "Entre 2 e 3 salários mínimos",
-    salario > 3 * salario_minimo[as.character(ano)] & salario <= 4 * salario_minimo[as.character(ano)] ~ "Entre 3 e 4 salários mínimos",
-    salario > 4 * salario_minimo[as.character(ano)] & salario <= 5 * salario_minimo[as.character(ano)] ~ "Entre 4 e 5 salários mínimos",
-    salario > 5 * salario_minimo[as.character(ano)] & salario <= 10 * salario_minimo[as.character(ano)] ~ "Entre 5 e 10 salários mínimos",
-    salario > 10 * salario_minimo[as.character(ano)] ~ "Mais de 10 salários mínimos",
-    TRUE ~ NA_character_
-  )
-}
 
 # Função para formatar o tempo de execução
 format_time <- function(seconds) {
@@ -147,13 +109,7 @@ processar_arquivo <- function(
     tipo_arquivo, 
     diretorio_processados, 
     colunas_selecionadas, 
-    salario_minimo, 
-    dic_classes, 
-    dic_faixaeta, 
-    dic_escolaridade, 
-    dic_sexo, 
-    dic_racacor, 
-    dic_local
+    filtro_uf
 ) {
   
   # Captura de tempo
@@ -195,9 +151,10 @@ processar_arquivo <- function(
     
     # Renomeando as colunas para minúsculas e removendo acentos
     data <- data %>%
-      rename_with(~ tolower(stri_trans_general(., "Latin-ASCII"))) %>% 
-      
+      rename_with(~ tolower(stri_trans_general(., "Latin-ASCII")))
+    
     # Aplicando o filtro de UF
+    data <- data %>% 
       filter(uf == filtro_uf)
     
     # Admissões, desligamentos e saldo de movimentação
@@ -216,58 +173,20 @@ processar_arquivo <- function(
         )
     }
     
-    # Transformação da coluna salario
-    data <- data %>%
-      mutate(
-        salario = as.factor(salario))
+    # Agrupando pelos campos definidos em 'colunas_agrupar'
+    data_agrupada <- data[, .(
+      admissoes = sum(admissoes, na.rm = TRUE),
+      desligamentos = sum(desligamentos, na.rm = TRUE),
+      saldomovimentacao = sum(saldomovimentacao, na.rm = TRUE)
+    ), by = colunas_agrupar]
     
     # Verificação se df_tipo está NULL
     if (is.null(df_tipo)) {
-      df_tipo <- data
+      df_tipo <- data_agrupada
     } else {
-      df_tipo <- rbindlist(list(df_tipo, data), use.names = TRUE, fill = TRUE)
+      df_tipo <- rbindlist(list(df_tipo, data_agrupada), use.names = TRUE, fill = TRUE)
     }
   }
-  
-  # Agora, fazemos a seleção das colunas apenas se df_tipo não for NULL
-  if (!is.null(df_tipo)) {
-    df_tipo <- df_tipo %>%
-      select(all_of(colunas_selecionadas)) %>% 
-      mutate(
-        ano = substr(competenciamov, 1, 4),
-        competenciamov = paste0(substr(competenciamov, 1, 4),
-                                substr(competenciamov, 5, 6)),
-        competenciamov = as.Date(competenciamov, format = "%Y%m"),
-        salario = as.numeric(str_replace_na(str_replace(as.character(salario), ",", "."), "0")),
-        faixa_salarial = calcular_faixa_salarial(salario, ano, salario_minimo),
-        sexo = mapvalues(sexo, from = dic_sexo$cod, to = dic_sexo$nom, warn_missing = FALSE),
-        racacor = mapvalues(racacor, from = dic_racacor$cod, to = dic_racacor$nom, warn_missing = FALSE),
-        graudeinstrucao = mapvalues(graudeinstrucao, from = dic_escolaridade$cod, to = dic_escolaridade$nom, warn_missing = FALSE),
-        faixaetaria = adicionar_faixaeta(idade),
-        faixaeta = mapvalues(faixaetaria, from = dic_faixaeta$cod, to = dic_faixaeta$nom, warn_missing = FALSE),
-        subclasse = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Subclasse`, warn_missing = FALSE),
-        classe = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Classe`, warn_missing = FALSE),
-        secao = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Seção`, warn_missing = FALSE),
-        uf = mapvalues(uf, from = dic_local$UF, to = dic_local$Nome_UF, warn_missing = FALSE),
-        regiao = adicionar_regiao(regiao)
-        ) %>% 
-      select(-faixaetaria)
-  
-    # Agregando os dados
-    data <- data %>%
-      group_by_all() %>%
-      mutate(
-        admissoes = sum(admissoes),
-        desligamentos = sum(desligamentos),
-        saldomovimentacao = sum(saldomovimentacao)
-      )
-    
-    # Processamento incremental
-    if (is.null(df_tipo)) {
-      df_tipo <- data
-    } else {
-      df_tipo <- rbindlist(list(df_tipo, data), use.names = TRUE, fill = TRUE)
-      }}
   
   parquet_path <- paste0(diretorio_processados, tipo_arquivo, ".parquet")
   write_parquet(df_tipo, parquet_path)
@@ -278,23 +197,15 @@ processar_arquivo <- function(
   cat("\nArquivo processado:", tipo_arquivo, "\nTempo de execução:", format_time(as.numeric(processing_time, units = "secs")))
   
   return(invisible(df_tipo))
-  
-  }
+}
 
 ### Processando arquivos =======================================================
 map(tipos_arquivos, ~processar_arquivo(
   tipo_arquivo = .x, 
   diretorio_processados = diretorio_processados, 
-  colunas_selecionadas = colunas_selecionadas, 
-  salario_minimo = salario_minimo, 
-  dic_classes = dic_classes, 
-  dic_faixaeta = dic_faixaeta, 
-  dic_escolaridade = dic_escolaridade, 
-  dic_sexo = dic_sexo, 
-  dic_racacor = dic_racacor, 
-  dic_local = dic_local
+  colunas_selecionadas = colunas_selecionadas,
+  filtro_uf = filtro_uf
 ))
-
 
 ### Gerando CAGED_UNIFICADA ====================================================
 dfs <- list()
@@ -328,23 +239,43 @@ if (length(dfs) > 0) {
   # Concatenando os dataframes carregados
   CAGED_UNIFICADA <- bind_rows(dfs)
   
-  # Definição de colunas de soma e agrupamento
-  colunas_soma <- c("admissoes", "desligamentos", "saldomovimentacao")
-  colunas_agrupamento <- setdiff(names(CAGED_UNIFICADA), colunas_soma)
-  
-  # Convertendo colunas para tipo numérico inteiro
-  CAGED_UNIFICADA <- CAGED_UNIFICADA %>%
-    mutate(across(all_of(colunas_soma), as.integer))
-  
-  # Agrupando e somando as colunas numéricas
-  CAGED_AGRUPADO <- CAGED_UNIFICADA %>%
-    group_by(across(all_of(colunas_agrupamento))) %>%
-    summarise(across(all_of(colunas_soma), sum, .groups = "drop"))
-  
   # Salvando arquivo
-  write_parquet(CAGED_AGRUPADO, file.path(diretorio_processados, "CAGED_UNIFICADA.parquet"), compression = "snappy")
+  write_parquet(CAGED_UNIFICADA, file.path(diretorio_processados, "CAGED_UNIFICADA.parquet"), compression = "snappy")
   
   cat("CAGED_UNIFICADA criada com sucesso!\n")
 } else {
   cat("Nenhum arquivo foi carregado. Verifique os arquivos de entrada.\n")
 }
+
+#### Processando CAGED_UNIFICADA ===============================================
+CAGED_UNIFICADA <- CAGED_UNIFICADA %>%
+  mutate(
+    salario = as.factor(salario),
+    ano = substr(competenciamov, 1, 4),
+    competenciamov = paste0(substr(competenciamov, 1, 4),
+                            substr(competenciamov, 5, 6)),
+    competenciamov = as.Date(competenciamov, format = "%Y%m"),
+    salario = as.numeric(str_replace_na(str_replace(as.character(salario), ",", "."), "0")),
+    faixa_salarial = calcular_faixa_salarial(salario, ano, salario_minimo),
+    sexo = mapvalues(sexo, from = dic_sexo$cod, to = dic_sexo$nom, warn_missing = FALSE),
+    racacor = mapvalues(racacor, from = dic_racacor$cod, to = dic_racacor$nom, warn_missing = FALSE),
+    graudeinstrucao = mapvalues(graudeinstrucao, from = dic_escolaridade$cod, to = dic_escolaridade$nom, warn_missing = FALSE),
+    faixaetaria = adicionar_faixaeta(idade),
+    faixaeta = mapvalues(faixaetaria, from = dic_faixaeta$cod, to = dic_faixaeta$nom, warn_missing = FALSE),
+    subclasse = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Subclasse`, warn_missing = FALSE),
+    classe = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Classe`, warn_missing = FALSE),
+    secao = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Seção`, warn_missing = FALSE),
+    uf = mapvalues(uf, from = dic_local$UF, to = dic_local$Nome_UF, warn_missing = FALSE),
+    regiao = adicionar_regiao(regiao)
+  ) %>% 
+  select(-faixaetaria)
+
+# Checando valores mais recentes com os oficiais 
+# https://www.gov.br/trabalho-e-emprego/pt-br/assuntos/estatisticas-trabalho
+CAGED_UNIFICADA %>%
+  filter(competenciamov == "202501") %>%
+  summarise(
+    admissoes = sum(admissoes, na.rm = TRUE),
+    desligamentos = sum(desligamentos, na.rm = TRUE),
+    saldo = sum(saldomovimentacao, na.rm = TRUE)
+  )
