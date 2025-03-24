@@ -323,9 +323,10 @@ CAGED_UNIFICADA <- CAGED_UNIFICADA %>%
     graudeinstrucao = mapvalues(graudeinstrucao, from = dic_escolaridade$cod, to = dic_escolaridade$nom, warn_missing = FALSE),
     faixaetaria = adicionar_faixaeta(idade),
     faixaeta = mapvalues(faixaetaria, from = dic_faixaeta$cod, to = dic_faixaeta$nom, warn_missing = FALSE),
-    subclasse = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Subclasse`, warn_missing = FALSE),
-    classe = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Classe`, warn_missing = FALSE),
-    secao = mapvalues(subclasse, from = dic_classes$Subclasse, to = dic_classes$`Nome Seção`, warn_missing = FALSE),
+    subclasse_original = CAGED_UNIFICADA$subclasse,  
+    subclasse = mapvalues(subclasse_original, from = dic_classes$Subclasse, to = dic_classes$`Nome Subclasse`, warn_missing = FALSE),
+    classe = mapvalues(subclasse_original, from = dic_classes$Subclasse, to = dic_classes$`Nome Classe`, warn_missing = FALSE),
+    secao = mapvalues(subclasse_original, from = dic_classes$Subclasse, to = dic_classes$`Nome Seção`, warn_missing = FALSE),
     uf = mapvalues(uf, from = dic_local$UF, to = dic_local$Nome_UF, warn_missing = FALSE),
     regiao = adicionar_regiao(regiao)
   ) %>%
